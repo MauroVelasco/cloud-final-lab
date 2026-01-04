@@ -58,11 +58,23 @@ Resources:
         import boto3
         s3 = boto3.client('s3')
         def download_handler(event, context):
+            arn = context.invoked_function_arn
+        
+            region_id = arn.split(":")[3]
+            print(f"region_id: {region_id}")
+        
+            account_id = arn.split(":")[4]
+            print(f"account_id: {account_id}")
+        
+            bucket_name = f"upload-bucket-{account_id}-{region_id}"
+            print(f"bucket_name: {bucket_name}")
+        
             object_key = event['pathParameters']['objectKey']
-            
+            print(f"object_key: {object_key}")
+        
             # Generate pre-signed GET URL (valid for 1 hour)
             url = s3.generate_presigned_url('get_object', Params={
-                'Bucket': "${UploadBucket}", 'Key': object_key
+                'Bucket': bucket_name, 'Key': object_key
             }, ExpiresIn=3600)
             
             return {
