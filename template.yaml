@@ -24,13 +24,27 @@ Resources:
         import json, boto3, uuid
         s3 = boto3.client('s3')
         def upload_handler(event, context):
+            arn = context.invoked_function_arn
+            
+            region_id = arn.split(":")[3]
+            print(f"region_id: {region_id}")
+        
+            account_id = arn.split(":")[4]
+            print(f"account_id: {account_id}")
+        
+            bucket_name = f"upload-bucket-{account_id}-{region_id}"
+            print(f"bucket_name: {bucket_name}")
+        
             body = json.loads(event.get('body', '{}'))
             filename = body.get('filename', str(uuid.uuid4()))
+            print(f"filename: {filename}")
+        
             content_type = body.get('contentType', 'application/octet-stream')
-            
+            print(f"content_type: {content_type}")
+        
             # Generate pre-signed PUT URL (valid for 15 mins)
             url = s3.generate_presigned_url('put_object', Params={
-                'Bucket': "${UploadBucket}", 'Key': filename, 'ContentType': content_type
+                'Bucket': bucket_name, 'Key': filename, 'ContentType': content_type
             }, ExpiresIn=900)
             
             return {
