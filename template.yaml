@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Pre-signed URL Generator for S3 Upload/Download
+
+Resources:
+  # 1. S3 Bucket for Storage
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "upload-bucket-${AWS::AccountId}-${AWS::Region}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [PUT, GET]
+            AllowedOrigins: ['*']
+
+  # 2. Lambda Function for POST /files (Upload)
+  UploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: upload.lambda_handler
+      Runtime: python3.9
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref UploadBucket
+      Events:
+        PostFile:
+          Type: Api
+          Properties:
+            Path: /files
+            Method: POST
+
+  # 3. Lambda Function for GET /files/{proxy} (Download/Redirect)
+  DownloadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: download.lambda_handler
+      Runtime: python3.9
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref UploadBucket
+      Events:
+        GetFile:
+          Type: Api
+          Properties:
+            Path: /files/{objectKey}
+            Method: GET
+
+Outputs:
+  ApiEndpoint:
+    Description: "Base URL of the API"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
