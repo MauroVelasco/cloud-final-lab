@@ -18,9 +18,26 @@ Resources:
   UploadUrlFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
-      Handler: upload.lambda_handler
+      Handler: index.upload_handler
       Runtime: python3.9
+      InlineCode: |
+        import json, boto3, uuid
+        s3 = boto3.client('s3')
+        def upload_handler(event, context):
+            body = json.loads(event.get('body', '{}'))
+            filename = body.get('filename', str(uuid.uuid4()))
+            content_type = body.get('contentType', 'application/octet-stream')
+            
+            # Generate pre-signed PUT URL (valid for 15 mins)
+            url = s3.generate_presigned_url('put_object', Params={
+                'Bucket': "${UploadBucket}", 'Key': filename, 'ContentType': content_type
+            }, ExpiresIn=900)
+            
+            return {
+                "statusCode": 201,
+                "headers": { "Location": url, "Access-Control-Allow-Origin": "*" },
+                "body": json.dumps({"objectKey": filename, "uploadUrl": url})
+            }
       Policies:
         - S3WritePolicy:
             BucketName: !Ref UploadBucket
@@ -35,9 +52,23 @@ Resources:
   DownloadUrlFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
-      Handler: download.lambda_handler
+      Handler: index.download_handler
       Runtime: python3.9
+      InlineCode: |
+        import boto3
+        s3 = boto3.client('s3')
+        def download_handler(event, context):
+            object_key = event['pathParameters']['objectKey']
+            
+            # Generate pre-signed GET URL (valid for 1 hour)
+            url = s3.generate_presigned_url('get_object', Params={
+                'Bucket': "${UploadBucket}", 'Key': object_key
+            }, ExpiresIn=3600)
+            
+            return {
+                "statusCode": 302,
+                "headers": { "Location": url }
+            }
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref UploadBucket
@@ -52,4 +83,3 @@ Outputs:
   ApiEndpoint:
     Description: "Base URL of the API"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
-
